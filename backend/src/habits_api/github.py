@@ -153,3 +153,31 @@ async def list_viewer_repositories() -> List[Dict[str, Any]]:
                 break
             cursor = repo_conn["pageInfo"]["endCursor"]
     return repos
+
+
+async def fetch_commit_files(full_name: str, sha: str) -> Dict[str, Any]:
+    """Fetch per-file changes for a commit via GitHub REST v3.
+
+    Returns: { files: [ {path, status, additions, deletions, patch?} ],
+               stats: { additions, deletions, total } }
+    """
+    settings = get_settings()
+    owner, name = split_repo(full_name)
+    url = f"https://api.github.com/repos/{owner}/{name}/commits/{sha}"
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.get(url, headers=_auth_headers(settings.github_token))
+        resp.raise_for_status()
+        data = resp.json()
+    files = []
+    for f in data.get("files", []) or []:
+        files.append(
+            {
+                "path": f.get("filename"),
+                "status": f.get("status"),
+                "additions": int(f.get("additions", 0)),
+                "deletions": int(f.get("deletions", 0)),
+                # Patch can be large; include as text when present
+                "patch": f.get("patch"),
+            }
+        )
+    return {"files": files, "stats": data.get("stats") or {}}

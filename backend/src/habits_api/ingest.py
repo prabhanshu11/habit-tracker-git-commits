@@ -9,8 +9,8 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import Window, get_settings
-from .db import Commit, Repository
-from .github import fetch_commits_since, list_viewer_repositories
+from .db import Commit, Repository, CommitFile
+from .github import fetch_commits_since, list_viewer_repositories, fetch_commit_files
 
 log = logging.getLogger(__name__)
 
@@ -69,20 +69,38 @@ async def ingest_repo(session: AsyncSession, repo: Repository) -> int:
             select(func.count(Commit.id)).where(Commit.repo_id == repo.id, Commit.sha == c["sha"])  # type: ignore[arg-type]
         )
         if exists.scalar_one() == 0:
-            session.add(
-                Commit(
-                    repo_id=repo.id,  # type: ignore[arg-type]
-                    sha=c["sha"],
-                    author_name=c.get("author_name"),
-                    author_login=c.get("author_login"),
-                    committed_at=committed_at,
-                    message=c.get("message", ""),
-                    additions=int(c.get("additions", 0)),
-                    deletions=int(c.get("deletions", 0)),
-                    changed_files=int(c.get("changed_files", 0)),
-                    url=c.get("url"),
-                )
+            commit = Commit(
+                repo_id=repo.id,  # type: ignore[arg-type]
+                sha=c["sha"],
+                author_name=c.get("author_name"),
+                author_login=c.get("author_login"),
+                committed_at=committed_at,
+                message=c.get("message", ""),
+                additions=int(c.get("additions", 0)),
+                deletions=int(c.get("deletions", 0)),
+                changed_files=int(c.get("changed_files", 0)),
+                url=c.get("url"),
             )
+            session.add(commit)
+            await session.flush()  # assign commit.id
+
+            # Fetch and persist per-file changes (REST)
+            try:
+                files_payload = await fetch_commit_files(repo.full_name, commit.sha)
+                for f in files_payload.get("files", []):
+                    session.add(
+                        CommitFile(
+                            commit_id=commit.id,  # type: ignore[arg-type]
+                            path=f.get("path") or "",
+                            status=f.get("status"),
+                            additions=int(f.get("additions", 0)),
+                            deletions=int(f.get("deletions", 0)),
+                            patch=f.get("patch"),
+                        )
+                    )
+            except Exception as e:
+                log.exception("Failed to fetch files for %s@%s: %s", repo.full_name, commit.sha, e)
+
             new += 1
 
     repo.last_checked_at = now
@@ -99,6 +117,36 @@ async def ingest_all(session: AsyncSession) -> int:
     for r in repos:
         count += await ingest_repo(session, r)
     return count
+
+
+async def ensure_commit_files(session: AsyncSession, repo: Repository, commit: Commit) -> int:
+    """Ensure CommitFile rows exist for the given commit; fetch if missing.
+
+    Returns the number of files added.
+    """
+    res = await session.execute(select(func.count(CommitFile.id)).where(CommitFile.commit_id == commit.id))
+    if int(res.scalar_one() or 0) > 0:
+        return 0
+    try:
+        payload = await fetch_commit_files(repo.full_name, commit.sha)
+        added = 0
+        for f in payload.get("files", []):
+            session.add(
+                CommitFile(
+                    commit_id=commit.id,  # type: ignore[arg-type]
+                    path=f.get("path") or "",
+                    status=f.get("status"),
+                    additions=int(f.get("additions", 0)),
+                    deletions=int(f.get("deletions", 0)),
+                    patch=f.get("patch"),
+                )
+            )
+            added += 1
+        await session.commit()
+        return added
+    except Exception as e:
+        log.exception("ensure_commit_files failed for %s@%s: %s", repo.full_name, commit.sha, e)
+        return 0
 
 
 def start_scheduler(job_func, session_factory) -> AsyncIOScheduler:

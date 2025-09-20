@@ -9,6 +9,8 @@
 #   scripts/dev.fish --ingest        # also trigger one ingestion after backend is up
 #   scripts/dev.fish stop            # stop backend (reads PID)
 #   scripts/dev.fish status          # show backend status
+#   scripts/dev.fish restart         # restart backend and recreate web dev server (kills port if busy)
+#   scripts/dev.fish --web-port 5174 # override web port (default 5173)
 
 set -g ROOT (cd (dirname (status -f))/..; pwd)
 set -g BACKEND_DIR "$ROOT/backend"
@@ -17,6 +19,7 @@ set -g LOG_DIR "/home/prabhanshu/Programs/logs"
 set -g LOG_FILE "$LOG_DIR/habit-backend.log"
 set -g PID_FILE "$LOG_DIR/habit-backend.pid"
 set -g API_URL "http://127.0.0.1:8081"
+set -g WEB_PORT 5173
 
 set -l DO_INGEST 0
 set -l CMD "start"
@@ -28,8 +31,13 @@ while test $i -le (count $argv)
     switch $arg
         case --ingest
             set DO_INGEST 1
-        case start stop status
+        case start stop status restart
             set CMD $arg
+        case --web-port
+            set i (math $i + 1)
+            if test $i -le (count $argv)
+                set WEB_PORT $argv[$i]
+            end
         case '*'
             # ignore unknown flags
     end
@@ -101,6 +109,39 @@ function status_backend
     end
 end
 
+function _pid_on_port -a port
+    set -l pid ""
+    if type -q lsof
+        set pid (lsof -t -i :$port 2>/dev/null | head -n1)
+    end
+    if test -z "$pid"; and type -q fuser
+        set pid (fuser -n tcp $port 2>/dev/null | string trim)
+    end
+    if test -z "$pid"; and type -q ss
+        set pid (ss -ltnp 2>/dev/null | awk -v p=$port '$4 ~ ":"p"$" {print $NF}' | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | head -n1)
+    end
+    if test -n "$pid"
+        echo $pid
+        return 0
+    end
+    return 1
+end
+
+function stop_web
+    set -l pid (_pid_on_port $WEB_PORT)
+    if test -n "$pid"
+        echo "Stopping web on port $WEB_PORT (PID: $pid)"
+        kill $pid 2>/dev/null
+        sleep 0.5
+        if kill -0 $pid 2>/dev/null
+            echo "Force killing web PID $pid"
+            kill -9 $pid 2>/dev/null
+        end
+    else
+        echo "Web not running on port $WEB_PORT"
+    end
+end
+
 function start_web
     cd $WEB_DIR
     if test -d node_modules
@@ -111,8 +152,15 @@ function start_web
         npm install
     end
     set -x NEXT_PUBLIC_API_BASE $API_URL
-    echo "Web dev server → http://127.0.0.1:5173/"
-    npm run dev
+    # Ensure port is free; kill any existing process using it
+    set -l pid (_pid_on_port $WEB_PORT)
+    if test -n "$pid"
+        echo "Port $WEB_PORT is busy (PID: $pid). Recreating web server..."
+        stop_web
+    end
+    echo "Web dev server → http://127.0.0.1:$WEB_PORT/"
+    # Run Next.js dev on specified port directly
+    npx next dev -p $WEB_PORT
 end
 
 switch $CMD
@@ -129,6 +177,26 @@ switch $CMD
         start_web
     case stop
         stop_backend
+        stop_web
     case status
         status_backend
+        set -l pid (_pid_on_port $WEB_PORT)
+        if test -n "$pid"
+            echo "Web running on :$WEB_PORT (PID: $pid)"
+        else
+            echo "Web not running on :$WEB_PORT"
+        end
+    case restart
+        stop_backend
+        stop_web
+        start_backend
+        if test $DO_INGEST -eq 1
+            echo "Triggering ingestion once..."
+            if curl -sf -X POST "$API_URL/admin/ingest" >/dev/null 2>&1
+                echo "Ingestion triggered."
+            else
+                echo "Ingestion failed (check $LOG_FILE)."
+            end
+        end
+        start_web
 end

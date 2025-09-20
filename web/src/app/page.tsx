@@ -1,6 +1,7 @@
 "use client"
 
 import useSWR from 'swr'
+import { useState } from 'react'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8081'
 const fetcher = (url: string) => fetch(url).then(r => r.json())
@@ -8,28 +9,51 @@ const fetcher = (url: string) => fetch(url).then(r => r.json())
 type Summary = {
   window: string
   total_commits: number
+  total_lines_updated: number
+  repos_updated_count: number
   last_checked_at: string | null
   per_repo: { id: number, full_name: string, commits_count: number, is_private: boolean }[]
 }
 
 export default function HomePage() {
-  const { data, error, isLoading } = useSWR<Summary>(`${API_BASE}/metrics/summary?window=24h`, fetcher, { refreshInterval: 15000 })
+  const summaryUrl = `${API_BASE}/metrics/summary?window=24h`
+  const { data, error, isLoading, mutate } = useSWR<Summary>(summaryUrl, fetcher, { refreshInterval: 15000 })
+  const [refreshing, setRefreshing] = useState(false)
+
+  async function refreshNow() {
+    try {
+      setRefreshing(true)
+      await fetch(`${API_BASE}/admin/ingest`, { method: 'POST' })
+      // revalidate summary after triggering
+      await mutate()
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   return (
     <main className="max-w-5xl mx-auto space-y-6">
-      <header className="ink-panel p-6">
-        <h1 className="text-3xl font-bold mb-2">Git Habit Tracker</h1>
-        <p className="opacity-80">Commits in the last 24 hours across your repos</p>
+      <header className="ink-panel p-6 flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold mb-1">Git Habit Tracker</h1>
+          <p className="opacity-80">Activity in the last 24 hours</p>
+        </div>
+        <button onClick={refreshNow} disabled={refreshing} className="pill hover:translate-y-px active:translate-y-[2px] transition-transform">
+          {refreshing ? 'Refreshing…' : 'Refresh now'}
+        </button>
       </header>
 
       <section className="ink-panel p-6 flex items-center justify-between">
         <div>
-          <div className="text-sm opacity-80">Commits (24h)</div>
-          <div className="big-number font-extrabold">{isLoading ? '…' : (data?.total_commits ?? 0)}</div>
+          <div className="text-sm opacity-80">Lines updated (24h)</div>
+          <div className="big-number font-extrabold">{isLoading ? '…' : (data?.total_lines_updated ?? 0)}</div>
         </div>
-        <div className="text-right">
-          <div className="text-sm opacity-80">Last checked</div>
-          <div>{data?.last_checked_at ? new Date(data.last_checked_at).toLocaleString() : '—'}</div>
+        <div className="text-right space-y-1">
+          <div>
+            <div className="text-sm opacity-80">Repos updated</div>
+            <div className="text-lg font-semibold">{isLoading ? '…' : (data?.repos_updated_count ?? 0)}</div>
+          </div>
+          <div className="text-xs opacity-80">Last checked: {data?.last_checked_at ? new Date(data.last_checked_at).toLocaleString() : '—'}</div>
         </div>
       </section>
 

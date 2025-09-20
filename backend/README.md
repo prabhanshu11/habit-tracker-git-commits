@@ -2,7 +2,14 @@
 
 Local API to ingest GitHub commit history for selected repositories and serve summary metrics.
 
-## Quick Start
+## Quick Start (default)
+
+- From repo root (fish): `scripts/dev.fish` — starts backend (bg) + web (fg).
+- Trigger one-time ingestion: `scripts/dev.fish --ingest`.
+- Restart both: `scripts/dev.fish restart`. Stop: `scripts/dev.fish stop`.
+- Change web port: `scripts/dev.fish --web-port 5174`.
+
+### Manual backend only
 
 fish shell with uv is recommended.
 
@@ -26,12 +33,14 @@ fish shell with uv is recommended.
 - `GET /health` — health check
 - `GET /repos` — list repositories
 - `GET /metrics/summary?window=24h` — aggregate across repos
+  - Includes `total_lines_updated` and `repos_updated_count`
 - `GET /repos/{id}/metrics?window=24h` — per-repo metric summary
 - `GET /repos/{id}/commits?window=24h&limit=100` — commit list
+- `GET /repos/{id}/commit/{sha}` — commit detail with per-file stats; `patch` redacted for private repos unless `ALLOW_PRIVATE_CODE=true`
 - `POST /admin/ingest` — run ingestion now
 
 ## Notes
 
 - Scheduler runs every 15 minutes by default.
-- Ingestion uses GitHub GraphQL for commit history (fast) and avoids diffs content to keep requests light.
+- Ingestion uses GitHub GraphQL for commit history (fast) and GitHub REST for per-commit file stats/patches.
 - Tables are created automatically on startup.

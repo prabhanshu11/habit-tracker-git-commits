@@ -50,6 +50,23 @@ class Commit(Base):
     repo: Mapped[Repository] = relationship(back_populates="commits")
 
 
+class CommitFile(Base):
+    __tablename__ = "commit_files"
+    __table_args__ = (
+        UniqueConstraint("commit_id", "path", name="uq_commit_files_commit_path"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    commit_id: Mapped[int] = mapped_column(ForeignKey("commits.id", ondelete="CASCADE"), index=True)
+    path: Mapped[str] = mapped_column(String(1024))
+    status: Mapped[str | None] = mapped_column(String(32))
+    additions: Mapped[int] = mapped_column(Integer, default=0)
+    deletions: Mapped[int] = mapped_column(Integer, default=0)
+    patch: Mapped[str | None] = mapped_column(Text)
+
+    commit: Mapped[Commit] = relationship()
+
+
 settings = get_settings()
 engine = create_async_engine(settings.database_url, echo=False, future=True)
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
@@ -63,4 +80,3 @@ async def init_db() -> None:
 async def get_session() -> AsyncIterator[AsyncSession]:
     async with SessionLocal() as session:
         yield session
-

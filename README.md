@@ -16,40 +16,33 @@ Track daily commit activity across your GitHub repositories with a playful, retr
 - `web/` Next.js UI (TypeScript)
 - `prompts/` Design screenshots and the technical prompt
 
-## Run Locally
-- Start backend server (FastAPI):
-  - `cd backend`
-  - `uv sync`
-  - Copy `.env.example` (at repo root) to `.env`, set `GITHUB_TOKEN` and `REPO_ALLOWLIST`.
+## Run Locally (default)
+- One command (fish shell): `scripts/dev.fish`
+  - Starts backend in background (logged to `/home/prabhanshu/Programs/logs/habit-backend.log`).
+  - Starts web dev server in foreground and auto-recreates it if the port is busy.
+  - Trigger one-time ingestion on start: `scripts/dev.fish --ingest`.
+  - Restart both (clean): `scripts/dev.fish restart`.
+  - Stop both: `scripts/dev.fish stop`.
+  - Status: `scripts/dev.fish status`.
+  - Change web port: `scripts/dev.fish --web-port 5174` (default 5173).
+
+### Manual (advanced)
+- Backend (FastAPI):
+  - `cd backend && uv sync`
+  - Copy `.env.example` (repo root) to `.env`, set `GITHUB_TOKEN` and `REPO_ALLOWLIST`.
   - Run: `PYTHONPATH=src uv run uvicorn habits_api.app:app --host 127.0.0.1 --port 8081 --reload`
   - Seed once: `curl -X POST http://127.0.0.1:8081/admin/ingest`
-- Backend (fish, via uv):
-  - `cd backend`
-  - `uv sync`
-  - Copy `.env.example` (at repo root) to `.env`, set `GITHUB_TOKEN` and `REPO_ALLOWLIST`.
-  - `PYTHONPATH=backend/src uv run uvicorn habits_api.app:app --host 127.0.0.1 --port 8081 --reload`
-  - Seed data: `curl -X POST http://127.0.0.1:8081/admin/ingest`
 - Web:
-  - `cd web`
-  - `npm ci && npm run dev`
+  - `cd web && npm ci && npm run dev`
   - Open: http://127.0.0.1:5173/
 - Tests:
   - Python: `uv run pytest -q`
   - Web: `npm test`
 
-### One-command dev (backend bg + web fg)
-- From repo root: `scripts/dev.fish` (fish shell)
-  - Starts backend in background, logs to `/home/prabhanshu/Programs/logs/habit-backend.log`, PID at `/home/prabhanshu/Programs/logs/habit-backend.pid`
-  - Starts web dev server in foreground
-  - Optional ingestion: `scripts/dev.fish --ingest`
-  - Stop backend: `scripts/dev.fish stop` | Status: `scripts/dev.fish status`
-
-### One-command dev (background backend + web)
-- `scripts/dev.fish` (fish shell, from repo root)
-  - Starts backend in background and logs to `/home/prabhanshu/Programs/logs/habit-backend.log` (PID: `/home/prabhanshu/Programs/logs/habit-backend.pid`)
-  - Starts web dev server in foreground
-  - Optional: `scripts/dev.fish --ingest` to trigger one ingestion after startup
-  - Manage backend: `scripts/dev.fish status` | `scripts/dev.fish stop`
+### One-command dev details
+- Backend PID: `/home/prabhanshu/Programs/logs/habit-backend.pid`
+- Logs: `/home/prabhanshu/Programs/logs/habit-backend.log`
+- Web port: defaults to 5173; script will kill any process on that port before starting Next.js to ensure hot reload works.
 
 ### tmux Dev Script (optional)
 - One command to start both backend and web in tmux:

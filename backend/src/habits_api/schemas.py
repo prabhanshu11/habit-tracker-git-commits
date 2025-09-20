@@ -24,6 +24,8 @@ class SummaryRepo(BaseModel):
 class SummaryOut(BaseModel):
     window: str
     total_commits: int
+    total_lines_updated: int
+    repos_updated_count: int
     last_checked_at: dt.datetime | None
     per_repo: List[SummaryRepo]
 
@@ -47,3 +49,18 @@ class CommitOut(BaseModel):
     deletions: int
     changed_files: int
     url: Optional[str]
+
+
+class CommitFileOut(BaseModel):
+    path: str
+    status: Optional[str]
+    additions: int
+    deletions: int
+    patch: Optional[str]
+
+
+class CommitDetail(CommitOut):
+    repo_id: int
+    full_name: str
+    is_private: bool
+    files: List[CommitFileOut]

@@ -9,9 +9,9 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import Window, get_settings
-from .db import Commit, Repository, get_session, init_db, SessionLocal
-from .ingest import ingest_all, start_scheduler
-from .schemas import CommitOut, RepoMetrics, RepoOut, SummaryOut, SummaryRepo
+from .db import Commit, Repository, get_session, init_db, SessionLocal, CommitFile
+from .ingest import ingest_all, start_scheduler, ensure_commit_files
+from .schemas import CommitOut, RepoMetrics, RepoOut, SummaryOut, SummaryRepo, CommitFileOut, CommitDetail
 
 app = FastAPI(title="Habit Tracker — Git Commits")
 
@@ -68,25 +68,39 @@ async def summary(window: str = Query("24h"), session: AsyncSession = Depends(ge
         select(
             Commit.repo_id.label("repo_id"),
             func.count(Commit.id).label("count"),
+            func.coalesce(func.sum(Commit.additions + Commit.deletions), 0).label("lines"),
         )
         .where(Commit.committed_at >= since)
         .group_by(Commit.repo_id)
         .subquery()
     )
 
-    res = await session.execute(select(Repository, subq.c.count).join(subq, Repository.id == subq.c.repo_id, isouter=True))
+    res = await session.execute(select(Repository, subq.c.count, subq.c.lines).join(subq, Repository.id == subq.c.repo_id, isouter=True))
     rows = res.all()
     per_repo = []
-    total = 0
+    total_commits = 0
+    total_lines = 0
+    repos_updated = 0
     last_checked = None
-    for repo, count in rows:
+    for repo, count, lines in rows:
         c = int(count or 0)
-        total += c
+        l = int(lines or 0)
+        total_commits += c
+        total_lines += l
+        if c > 0:
+            repos_updated += 1
         if not last_checked or (repo.last_checked_at and repo.last_checked_at > last_checked):
             last_checked = repo.last_checked_at
         per_repo.append(SummaryRepo(id=repo.id, full_name=repo.full_name, commits_count=c, is_private=repo.is_private))
 
-    return SummaryOut(window=w.value, total_commits=total, last_checked_at=last_checked, per_repo=per_repo)
+    return SummaryOut(
+        window=w.value,
+        total_commits=total_commits,
+        total_lines_updated=total_lines,
+        repos_updated_count=repos_updated,
+        last_checked_at=last_checked,
+        per_repo=per_repo,
+    )
 
 
 @app.get("/repos/{repo_id}/metrics", response_model=RepoMetrics)
@@ -136,3 +150,49 @@ async def repo_commits(repo_id: int, window: str = Query("24h"), limit: int = Qu
         )
         for c in commits
     ]
+
+
+@app.get("/repos/{repo_id}/commit/{sha}", response_model=CommitDetail)
+async def commit_detail(repo_id: int, sha: str, include_patch: bool = Query(True), session: AsyncSession = Depends(get_session)):
+    settings = get_settings()
+    repo = await session.get(Repository, repo_id)
+    if not repo:
+        raise HTTPException(404, detail="repo not found")
+    res = await session.execute(select(Commit).where(Commit.repo_id == repo_id, Commit.sha == sha))
+    commit = res.scalar_one_or_none()
+    if not commit:
+        raise HTTPException(404, detail="commit not found")
+
+    # Ensure we have files stored
+    await ensure_commit_files(session, repo, commit)
+
+    resf = await session.execute(select(CommitFile).where(CommitFile.commit_id == commit.id))
+    files = resf.scalars().all()
+
+    allow_patch = (not repo.is_private) or settings.allow_private_code
+    out_files = [
+        CommitFileOut(
+            path=f.path,
+            status=f.status,
+            additions=f.additions,
+            deletions=f.deletions,
+            patch=(f.patch if (allow_patch and include_patch) else None),
+        )
+        for f in files
+    ]
+
+    return CommitDetail(
+        sha=commit.sha,
+        author_name=commit.author_name,
+        author_login=commit.author_login,
+        committed_at=commit.committed_at,
+        message=commit.message,
+        additions=commit.additions,
+        deletions=commit.deletions,
+        changed_files=commit.changed_files,
+        url=commit.url,
+        files=out_files,
+        repo_id=repo.id,
+        full_name=repo.full_name,
+        is_private=repo.is_private,
+    )
