@@ -5,6 +5,8 @@
 # Backend
 backend/.venv/
 backend/__pycache__/
+backend/src/**/__pycache__/
+backend/data.db
 backend/.pytest_cache/
 
 # Web
@@ -12,4 +14,3 @@ web/node_modules/
 web/.next/
 web/.env.local
 web/.turbo/
-
