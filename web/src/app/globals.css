@@ -84,34 +84,53 @@ body {
 }
 
 /* Retro terminal log tape */
-.log-tape {
+/* Vertical retro log tape — single command scroll bottom→top */
+.log-tape-v {
   position: relative;
   border: 2px solid var(--ink);
   border-radius: 8px;
   box-shadow: 0 2px 0 var(--ink);
   overflow: hidden;
-  height: 36px;
-  background: var(--term-bg);
+  height: 32px;
+  background: color-mix(in oklab, var(--panel) 92%, black 8%);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
-.log-tape.green { color: var(--term-green); }
-.log-tape.amber { color: var(--term-amber); }
-.log-tape.red { color: var(--term-red); }
-.log-tape .tape-fade {
+.log-tape-v.green { color: var(--term-green); }
+.log-tape-v.amber { color: var(--term-amber); }
+.log-tape-v.mint { color: #24d19c; }
+.log-tape-v .tape-fade-v {
   position: absolute; inset: 0;
   pointer-events: none;
-  background: linear-gradient(90deg, rgba(0,0,0,0.65), transparent 12%, transparent 88%, rgba(0,0,0,0.65));
+  background: linear-gradient(180deg, rgba(247,231,211,0.85), rgba(247,231,211,0) 24%, rgba(247,231,211,0) 76%, rgba(247,231,211,0.85));
 }
-.log-tape .tape-track {
-  position: absolute; inset: 0;
-  display: flex; align-items: center;
-  white-space: nowrap;
+.tape-viewport { position: absolute; inset: 0; overflow: hidden; }
+.tape-col {
+  position: absolute; left: 0; right: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+  padding: 8px 12px;
+  animation: tape-scroll-y 10s linear infinite;
 }
-.log-tape .tape-scroll {
-  display: inline-flex; gap: 48px; padding: 0 16px;
-  animation: tape-scroll 12s linear infinite;
-  filter: blur(0.2px) saturate(1.2);
+.tape-line { line-height: 1; }
+@keyframes tape-scroll-y {
+  0% { transform: translateY(100%); }
+  100% { transform: translateY(-100%); }
 }
-@keyframes tape-scroll {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+
+/* Retro progress rectangle */
+.progress-retro {
+  height: 10px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  box-shadow: 0 2px 0 var(--ink);
+  background: color-mix(in oklab, var(--panel) 92%, black 8%);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%; width: 35%;
+  background: repeating-linear-gradient(45deg, var(--accent), var(--accent) 10px, #FFD66E 10px, #FFD66E 20px);
+  animation: progress-slide 1.1s ease-in-out infinite;
+}
+@keyframes progress-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
 }

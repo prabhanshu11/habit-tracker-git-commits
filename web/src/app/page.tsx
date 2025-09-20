@@ -21,14 +21,14 @@ export default function HomePage() {
   const [refreshing, setRefreshing] = useState(false)
   const [showProgress, setShowProgress] = useState(true)
   const [tapeVariant, setTapeVariant] = useState<'green'|'amber'|'red'|'mint'>('green')
-  const [tapeText, setTapeText] = useState<string>('Booting · Connecting to API · Loading summary …')
+  const [tapeText, setTapeText] = useState<string>('$ habits summary --window=24h')
 
   async function refreshNow() {
     try {
       setRefreshing(true)
       setShowProgress(true)
       setTapeVariant('amber')
-      setTapeText('Refreshing · Triggering ingestion · Updating summary …')
+      setTapeText('$ habits ingest --now && habits summary --window=24h')
       await fetch(`${API_BASE}/admin/ingest`, { method: 'POST' })
       // revalidate summary after triggering
       await mutate()
@@ -41,14 +41,14 @@ export default function HomePage() {
     if (isLoading && !refreshing) {
       setShowProgress(true)
       setTapeVariant('green')
-      setTapeText('Booting · Connecting to API · Loading summary …')
+      setTapeText('$ habits summary --window=24h')
     }
   }, [isLoading, refreshing])
 
   useEffect(() => {
     if (data && !isLoading) {
-      setTapeVariant('mint')
-      setTapeText(`Summary ready · ${data.total_lines_updated} lines · ${data.repos_updated_count} repos · window ${data.window}`)
+      setTapeVariant('green')
+      setTapeText(`$ ok lines=${data.total_lines_updated} repos=${data.repos_updated_count} window=${data.window}`)
       const t = setTimeout(() => setShowProgress(false), 400)
       return () => clearTimeout(t)
     }
@@ -62,22 +62,15 @@ export default function HomePage() {
           <p className="opacity-80">Activity in the last 24 hours</p>
         </div>
         <div className="hidden md:block flex-1 px-4">
-          <div className={`log-tape ${tapeVariant}`} aria-live="polite">
-            <div className="tape-track">
-              <div className="tape-scroll">
-                <span>{tapeText}</span>
-                <span>• {tapeText}</span>
-                <span>• {tapeText}</span>
-                <span>• {tapeText}</span>
-              </div>
-              <div className="tape-scroll" aria-hidden>
-                <span>{tapeText}</span>
-                <span>• {tapeText}</span>
-                <span>• {tapeText}</span>
-                <span>• {tapeText}</span>
+          <div className={`log-tape-v ${tapeVariant}`} aria-live="polite">
+            <div className="tape-viewport">
+              <div className="tape-col">
+                <div className="tape-line">{tapeText}</div>
+                <div className="tape-line" aria-hidden>{tapeText}</div>
+                <div className="tape-line" aria-hidden>{tapeText}</div>
               </div>
             </div>
-            <div className="tape-fade" />
+            <div className="tape-fade-v" />
           </div>
         </div>
         <button onClick={refreshNow} disabled={refreshing} className="pill hover:translate-y-px active:translate-y-[2px] transition-transform">
@@ -85,8 +78,8 @@ export default function HomePage() {
         </button>
         {showProgress && (
           <div className="absolute -bottom-3 left-4 right-4">
-            <div className="progress-host">
-              <div className="progress-bar" />
+            <div className="progress-retro">
+              <div className="progress-fill" />
             </div>
           </div>
         )}
