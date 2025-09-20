@@ -1,7 +1,7 @@
 "use client"
 
 import useSWR from 'swr'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8081'
 const fetcher = (url: string) => fetch(url).then(r => r.json())
@@ -19,10 +19,16 @@ export default function HomePage() {
   const summaryUrl = `${API_BASE}/metrics/summary?window=24h`
   const { data, error, isLoading, mutate } = useSWR<Summary>(summaryUrl, fetcher, { refreshInterval: 15000 })
   const [refreshing, setRefreshing] = useState(false)
+  const [showProgress, setShowProgress] = useState(true)
+  const [tapeVariant, setTapeVariant] = useState<'green'|'amber'|'red'|'mint'>('green')
+  const [tapeText, setTapeText] = useState<string>('Booting · Connecting to API · Loading summary …')
 
   async function refreshNow() {
     try {
       setRefreshing(true)
+      setShowProgress(true)
+      setTapeVariant('amber')
+      setTapeText('Refreshing · Triggering ingestion · Updating summary …')
       await fetch(`${API_BASE}/admin/ingest`, { method: 'POST' })
       // revalidate summary after triggering
       await mutate()
@@ -31,16 +37,59 @@ export default function HomePage() {
     }
   }
 
+  useEffect(() => {
+    if (isLoading && !refreshing) {
+      setShowProgress(true)
+      setTapeVariant('green')
+      setTapeText('Booting · Connecting to API · Loading summary …')
+    }
+  }, [isLoading, refreshing])
+
+  useEffect(() => {
+    if (data && !isLoading) {
+      setTapeVariant('mint')
+      setTapeText(`Summary ready · ${data.total_lines_updated} lines · ${data.repos_updated_count} repos · window ${data.window}`)
+      const t = setTimeout(() => setShowProgress(false), 400)
+      return () => clearTimeout(t)
+    }
+  }, [data, isLoading])
+
   return (
     <main className="max-w-5xl mx-auto space-y-6">
-      <header className="ink-panel p-6 flex items-center justify-between gap-4">
+      <header className="ink-panel p-6 flex items-center justify-between gap-4 relative">
         <div>
           <h1 className="text-3xl font-bold mb-1">Git Habit Tracker</h1>
           <p className="opacity-80">Activity in the last 24 hours</p>
         </div>
+        <div className="hidden md:block flex-1 px-4">
+          <div className={`log-tape ${tapeVariant}`} aria-live="polite">
+            <div className="tape-track">
+              <div className="tape-scroll">
+                <span>{tapeText}</span>
+                <span>• {tapeText}</span>
+                <span>• {tapeText}</span>
+                <span>• {tapeText}</span>
+              </div>
+              <div className="tape-scroll" aria-hidden>
+                <span>{tapeText}</span>
+                <span>• {tapeText}</span>
+                <span>• {tapeText}</span>
+                <span>• {tapeText}</span>
+              </div>
+            </div>
+            <div className="tape-fade" />
+          </div>
+        </div>
         <button onClick={refreshNow} disabled={refreshing} className="pill hover:translate-y-px active:translate-y-[2px] transition-transform">
           {refreshing ? 'Refreshing…' : 'Refresh now'}
         </button>
+        {showProgress && (
+          <div className="absolute -bottom-3 left-4 right-4">
+            <div className="progress-host">
+              <div className="progress-bar" />
+            </div>
+          </div>
+        )}
       </header>
 
       <section className="ink-panel p-6 flex items-center justify-between">

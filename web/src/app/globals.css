@@ -9,6 +9,10 @@
   --accent: #F4B73B;
   --mint: #C8F3D9;
   --rose: #FFD1D9;
+  --term-green: #1ffd7a;
+  --term-amber: #ffce4a;
+  --term-red: #ff6b6b;
+  --term-bg: #061c0b;
 }
 
 html, body, #__next {
@@ -53,4 +57,61 @@ body {
   0% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
   100% { transform: translateY(0); }
+}
+
+/* Progress bar (indeterminate) */
+.progress-host {
+  position: relative;
+  height: 6px;
+  background: rgba(18,18,18,0.12);
+  border-radius: 9999px;
+  overflow: hidden;
+  border: 2px solid var(--ink);
+}
+.progress-bar {
+  position: absolute;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #FFD66E);
+  box-shadow: 0 2px 0 var(--ink);
+  width: 40%;
+  left: -40%;
+  animation: progress-indeterminate 1.2s infinite ease-out;
+}
+@keyframes progress-indeterminate {
+  0% { left: -40%; width: 40%; }
+  50% { left: 20%; width: 60%; }
+  100% { left: 100%; width: 40%; }
+}
+
+/* Retro terminal log tape */
+.log-tape {
+  position: relative;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  box-shadow: 0 2px 0 var(--ink);
+  overflow: hidden;
+  height: 36px;
+  background: var(--term-bg);
+}
+.log-tape.green { color: var(--term-green); }
+.log-tape.amber { color: var(--term-amber); }
+.log-tape.red { color: var(--term-red); }
+.log-tape .tape-fade {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(0,0,0,0.65), transparent 12%, transparent 88%, rgba(0,0,0,0.65));
+}
+.log-tape .tape-track {
+  position: absolute; inset: 0;
+  display: flex; align-items: center;
+  white-space: nowrap;
+}
+.log-tape .tape-scroll {
+  display: inline-flex; gap: 48px; padding: 0 16px;
+  animation: tape-scroll 12s linear infinite;
+  filter: blur(0.2px) saturate(1.2);
+}
+@keyframes tape-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
