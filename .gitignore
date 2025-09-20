@@ -1,0 +1,15 @@
+# General
+.DS_Store
+.env
+
+# Backend
+backend/.venv/
+backend/__pycache__/
+backend/.pytest_cache/
+
+# Web
+web/node_modules/
+web/.next/
+web/.env.local
+web/.turbo/
+

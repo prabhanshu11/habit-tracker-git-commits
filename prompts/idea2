@@ -1,0 +1,5 @@
+Your job is to create a technical prompt for a developer AI, which is higly techically skilled, but lacks long term planning, so we have to give it entire plan.
+
+The app's backend is to monitor all the repos, public and private and tell the user, within 24hrs and within 'last checked', how many commits have been made, as the single important metric to track and then a very flowly, retro, functional, minimalistic UI to get second level metrics, like how many lines for each change, then ability to see the code.
+
+

@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #F7E7D3;
+  --ink: #121212;
+  --panel: #FBEEDB;
+  --accent: #F4B73B;
+  --mint: #C8F3D9;
+  --rose: #FFD1D9;
+}
+
+html, body, #__next {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.ink-panel {
+  background: var(--panel);
+  border: 2px solid var(--ink);
+  box-shadow: 0 2px 0 var(--ink);
+  border-radius: 8px;
+}
+
+.pill {
+  display: inline-block;
+  padding: 2px 6px;
+  border: 2px solid var(--ink);
+  border-radius: 9999px;
+  font-size: 10px;
+  line-height: 1;
+  background: white;
+}
+
+.big-number {
+  font-size: 3rem;
+  line-height: 1;
+}
+
+.star {
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  animation: float 4s ease-in-out infinite;
+}
+
+@keyframes float {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+  100% { transform: translateY(0); }
+}
